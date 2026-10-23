@@ -35,7 +35,7 @@ const storageKey = "notes.meetings.v1";
 export default function Home() {
   const [items, setItems] = useState<Note[]>([]);
   const [title, setTitle] = useState("");
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState("");
   const [participants, setParticipants] = useState("");
   const [transcript, setTranscript] = useState("");
   const [segments, setSegments] = useState<SpeakerSegment[]>([]);
@@ -57,6 +57,7 @@ export default function Home() {
     let active = true;
     queueMicrotask(() => {
       if (!active) return;
+      setDate((current) => current || new Date().toISOString().slice(0, 10));
       try {
         const parsed: unknown = JSON.parse(localStorage.getItem(storageKey) || "[]");
         if (Array.isArray(parsed)) setItems(parsed as Note[]);
