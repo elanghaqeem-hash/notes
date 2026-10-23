@@ -1,69 +1,17 @@
-import Image from "next/image";
-
-export default function Home() {
-  return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
-  );
+"use client";
+import {useEffect,useRef,useState} from "react";
+type Note={id:string,title:string,date:string,participants:string,transcript:string,mom:string};
+const key="notes.meetings.v1";
+export default function Home(){
+const [items,setItems]=useState<Note[]>([]),[title,setTitle]=useState(""),[date,setDate]=useState(new Date().toISOString().slice(0,10)),[participants,setParticipants]=useState(""),[transcript,setTranscript]=useState(""),[mom,setMom]=useState(""),[recording,setRecording]=useState(false),[busy,setBusy]=useState(false),[message,setMessage]=useState("");
+const recorder=useRef<MediaRecorder|null>(null),chunks=useRef<Blob[]>([]);
+useEffect(()=>{try{setItems(JSON.parse(localStorage.getItem(key)||"[]"));}catch{}},[]);
+function persist(list:Note[]){setItems(list);localStorage.setItem(key,JSON.stringify(list));}
+function save(){if(!title.trim()){setMessage("Masukkan judul meeting.");return;}persist([{id:crypto.randomUUID(),title,date,participants,transcript,mom},...items]);setMessage("Catatan disimpan pada browser ini. Untuk arsip aman, ekspor dokumen.");}
+function download(name:string,content:string){const url=URL.createObjectURL(new Blob([content],{type:"text/plain;charset=utf-8"}));const a=document.createElement("a");a.href=url;a.download=name;a.click();URL.revokeObjectURL(url);}
+async function start(){try{const stream=await navigator.mediaDevices.getUserMedia({audio:true});const supported=["audio/webm;codecs=opus","audio/webm","audio/mp4"].find(t=>MediaRecorder.isTypeSupported(t));const r=new MediaRecorder(stream,supported?{mimeType:supported}:undefined);chunks.current=[];r.ondataavailable=e=>{if(e.data.size)chunks.current.push(e.data)};r.onstop=()=>{const blob=new Blob(chunks.current,{type:r.mimeType||"audio/webm"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="meeting-recording."+((r.mimeType||"").includes("mp4")?"m4a":"webm");a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);stream.getTracks().forEach(t=>t.stop());setMessage("Rekaman diunduh. Unggah file untuk transkripsi AI bila server sudah dikonfigurasi.");};recorder.current=r;r.start(1000);setRecording(true);setMessage("Perekaman aktif. Pastikan seluruh peserta telah diberi tahu dan menyetujui.");}catch{setMessage("Mikrofon tidak dapat diakses. Periksa izin browser dan HTTPS.");}}
+function stop(){recorder.current?.stop();setRecording(false);}
+async function transcribe(file:File){setBusy(true);setMessage("Mengirim audio untuk transkripsi...");try{const form=new FormData();form.append("file",file);const res=await fetch("/api/ai/transcribe",{method:"POST",body:form});const data=await res.json();if(!res.ok)throw Error(data.error||"Transkripsi gagal");setTranscript(data.text||"");setMessage("Transkripsi selesai.");}catch(e){setMessage(e instanceof Error?e.message:"Gagal memproses");}finally{setBusy(false);}}
+async function generate(){if(!transcript.trim()){setMessage("Masukkan transkrip terlebih dahulu.");return;}setBusy(true);setMessage("Membuat Minutes of Meeting...");try{const res=await fetch("/api/ai/mom",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({transcript,title,date,participants})});const data=await res.json();if(!res.ok)throw Error(data.error||"Gagal");setMom(data.text);setMessage("Draft MoM selesai. Wajib review sebelum final.");}catch(e){setMessage(e instanceof Error?e.message:"Gagal");}finally{setBusy(false);}}
+return <div className="min-h-screen bg-slate-100 text-slate-900"><header className="bg-[#13284c] text-white p-6"><div className="mx-auto max-w-6xl flex items-center justify-between"><div><h1 className="text-3xl font-bold">Notes</h1><p className="text-blue-200">Meeting Notes & Minutes of Meeting</p></div><a className="underline text-sm" href="/admin/ai-providers">AI Providers</a></div></header><main className="mx-auto max-w-6xl p-4 md:p-8 space-y-5"><section className="bg-white rounded-2xl shadow-sm p-6"><h2 className="text-xl font-bold mb-2">Workspace Meeting</h2><p className="text-slate-600">Rekam rapat, transkripsi AI, susun draft MoM, lalu review dan simpan. Saat ini penyimpanan catatan pada browser; rekaman harus diunduh agar tidak hilang.</p></section><section className="bg-white rounded-2xl p-6 space-y-4 shadow-sm"><div className="grid md:grid-cols-2 gap-4"><label className="font-semibold">Judul Meeting<input className="field" value={title} onChange={e=>setTitle(e.target.value)} placeholder="Contoh: Weekly Project Review"/></label><label className="font-semibold">Tanggal Meeting<input className="field" type="date" value={date} onChange={e=>setDate(e.target.value)}/></label></div><label className="font-semibold block">Peserta<textarea className="field" rows={2} value={participants} onChange={e=>setParticipants(e.target.value)} placeholder="Nama dan jabatan peserta"/></label><div className="flex flex-wrap gap-2"><button className="btn" onClick={recording?stop:start}>{recording?"Hentikan & Unduh Rekaman":"Mulai Rekam Suara"}</button><label className="btn cursor-pointer">Unggah Audio untuk Transkripsi<input className="hidden" type="file" accept="audio/*,.mp3,.wav,.m4a,.webm" disabled={busy} onChange={e=>{const f=e.target.files?.[0];if(f)void transcribe(f);e.target.value="";}}/></label></div><label className="font-semibold block">Transkrip Meeting<textarea className="field" rows={9} value={transcript} onChange={e=>setTranscript(e.target.value)} placeholder="Hasil transkripsi atau teks yang diketik langsung..."/></label><button className="btn" disabled={busy} onClick={generate}>{busy?"Memproses...":"Buat Draft MoM dengan AI"}</button><label className="font-semibold block">Minutes of Meeting (dapat diedit)<textarea className="field" rows={12} value={mom} onChange={e=>setMom(e.target.value)} placeholder="Ringkasan, pembahasan, keputusan, PIC, tenggat, tindak lanjut..."/></label><div className="flex flex-wrap gap-2"><button className="btn" onClick={save}>Simpan Catatan</button><button className="btn secondary" onClick={()=>download("notes-mom.txt",`JUDUL: ${title}\nTANGGAL: ${date}\nPESERTA: ${participants}\n\nTRANSKRIP:\n${transcript}\n\nMINUTES OF MEETING:\n${mom}`)}>Ekspor TXT</button></div>{message&&<p role="status" className="text-sm rounded-lg bg-blue-50 p-3 text-blue-900">{message}</p>}</section><section className="bg-white rounded-2xl p-6"><h2 className="font-bold text-lg mb-3">Catatan tersimpan di browser ini</h2>{items.length===0?<p className="text-slate-500">Belum ada catatan.</p>:items.map(item=><div key={item.id} className="border-t py-3 flex flex-wrap justify-between gap-2"><span>{item.date} — {item.title}</span><button className="text-blue-700 underline" onClick={()=>{setTitle(item.title);setDate(item.date);setParticipants(item.participants);setTranscript(item.transcript);setMom(item.mom);window.scrollTo({top:0,behavior:"smooth"});}}>Buka</button></div>)}</section></main></div>
 }
