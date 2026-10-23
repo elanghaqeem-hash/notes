@@ -54,13 +54,18 @@ export default function Home() {
   const audioUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
-    try {
-      const parsed: unknown = JSON.parse(localStorage.getItem(storageKey) || "[]");
-      if (Array.isArray(parsed)) setItems(parsed as Note[]);
-    } catch {
-      // A malformed local draft must not crash the workspace.
-    }
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      try {
+        const parsed: unknown = JSON.parse(localStorage.getItem(storageKey) || "[]");
+        if (Array.isArray(parsed)) setItems(parsed as Note[]);
+      } catch {
+        // A malformed local draft must not crash the workspace.
+      }
+    });
     return () => {
+      active = false;
       const recorder = recorderRef.current;
       if (recorder && recorder.state !== "inactive") recorder.stop();
       streamRef.current?.getTracks().forEach((track) => track.stop());
