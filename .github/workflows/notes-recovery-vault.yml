@@ -1,0 +1,22 @@
+name: Recovery Worker AI Vault Checks
+on:
+  push:
+    paths:
+      - "workers/notes-recovery/**"
+      - "tests/worker-ui-static.test.mjs"
+      - ".github/workflows/notes-recovery-vault.yml"
+  pull_request:
+    paths:
+      - "workers/notes-recovery/**"
+      - "tests/worker-ui-static.test.mjs"
+      - ".github/workflows/notes-recovery-vault.yml"
+jobs:
+  static-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node --check workers/notes-recovery/index.js
+      - run: node --test tests/worker-ui-static.test.mjs
